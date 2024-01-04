@@ -1,6 +1,5 @@
 #/usr/bin/python3
 import subprocess
-import re
 import socket
 import multiprocessing
 import numpy as np
@@ -74,43 +73,6 @@ def get_available_ips(start_ip, end_ip):
     print("-" * 80)
     return result, numbers  # Возвращаем список доступных IP-адресов
 
-def existing_ip_address(available_ips, num_parts):
-    """Функция ищет ip-адреса, которые существуют в сети
-       Ее используют созданные процессы функции multiprocessing_ping_functions"""
-    global progress_bar
-    # Создадим пустой список, куда будет записываться вывод команды ping
-    existing_ip_address_list = []
-    # Создадим пустой список, куда будем помещать существующие ip адреса
-    existing_ip_address_list_itog = []
-    # Проходимся по доступным ip-адресам, которые мы получили из функции get_available_ips
-    for ip_address in available_ips:
-        progress_bar += 1 * num_parts
-        try:
-            cmd.append(ip_address)
-            ip_address_result = subprocess.check_output(cmd, stderr=subprocess.DEVNULL)
-            cmd.pop()
-            if (r'\s\d%', ip_address_result):
-                print('\r'+" "*60, end="")
-                print('\r'+" "*60 + f"\r(!) {ip_address}"+" "*100)
-            # Добавляем вывод команды ping в список
-            existing_ip_address_list.append(ip_address_result)
-        except subprocess.CalledProcessError:
-
-            if progress_bar > number_of_addresses_to_scan:
-                progress_bar = number_of_addresses_to_scan
-            print(f"\r(.) {ip_address}  \t\t{progress_bar}/{number_of_addresses_to_scan}", end="")
-            cmd.pop()
-
-        # Получаем из списка вывода команды ping только ip адреса, которые ответили на пинг
-        for i in existing_ip_address_list:
-            i = str(i)
-            ip_address = re.search(r'\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}', i).group()
-            existing_ip_address_list_itog.append(ip_address)
-    # Удаляем одинаковые ip адреса
-    existing_ip_address_list_itog = set(existing_ip_address_list_itog)
-
-    return existing_ip_address_list_itog
-
 def multiprocessing_ping_functions(available_ips, rangeip, file, speed):
     """Функция выполняет сканирование сети с помощью параллельного выполнения icmp запросов,
        что позволяет нам значительно увеличить скорость"""
@@ -118,12 +80,29 @@ def multiprocessing_ping_functions(available_ips, rangeip, file, speed):
     global progress_bar
     progress_bar = 0
 
-    def func(available_ips, file, speed):
-        """Функция, которая вызывается при создании процессов"""
-        existing_ip = existing_ip_address(available_ips,speed)
-        with open(file, "a") as file_ip_session:
-            for line in existing_ip:
-                file_ip_session.write(line + "\n")
+    def existing_ip_address(available_ips, file, speed):
+        """Функция, которая вызывается при создании процессов.
+           Она ищет ip-адреса, которые существуют в сети
+           Ее используют созданные процессы функции multiprocessing_ping_functions"""
+        global progress_bar
+        # Проходимся по возможным ip-адресам, которые мы получили из функции get_available_ips
+        for ip_address in available_ips:
+            progress_bar += 1 * speed
+            try:
+                cmd.append(ip_address)
+                ip_address_result = subprocess.check_output(cmd, stderr=subprocess.DEVNULL)
+                cmd.pop()
+                if (r'\s\d%', ip_address_result):
+                    print('\r' + " " * 60, end="")
+                    print('\r' + " " * 60 + f"\r(!) {ip_address}" + " " * 100)
+                    with open(file, "a") as file_ip_session:
+                        file_ip_session.write(ip_address + "\n")
+            except subprocess.CalledProcessError:
+
+                if progress_bar > number_of_addresses_to_scan:
+                    progress_bar = number_of_addresses_to_scan
+                print(f"\r(.) {ip_address}  \t\t{progress_bar}/{number_of_addresses_to_scan}", end="")
+                cmd.pop()
 
     def split_list(lst, speed):
         """Функция разделяет список ip адресов на заданное количество частей (speed)."""
@@ -158,7 +137,7 @@ def multiprocessing_ping_functions(available_ips, rangeip, file, speed):
             # создание процессов
             processes = []
             for i in range(1, speed + 1):
-                process = multiprocessing.Process(target=func, args=(lst[f"lst{i}"], file, speed))
+                process = multiprocessing.Process(target=existing_ip_address, args=(lst[f"lst{i}"], file, speed))
                 processes.append(process)
 
             # Запуск процессов
