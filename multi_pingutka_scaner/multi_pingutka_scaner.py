@@ -50,6 +50,7 @@ def check_ip(ip):
     except socket.error:
         return False  # Возвращаем False, если IP-адрес некорректный
 
+
 def get_available_ips(start_ip, end_ip):
     """Функция для составления списка возможных IP-адресов"""
     print("Calculating IP addresses...")
@@ -72,6 +73,7 @@ def get_available_ips(start_ip, end_ip):
     print("\r[+] " + str(numbers) + " ip addresses will be checked")
     print("-" * 80)
     return result, numbers  # Возвращаем список доступных IP-адресов
+
 
 def multiprocessing_ping_functions(available_ips, rangeip, file, speed):
     """Функция выполняет сканирование сети с помощью параллельного выполнения icmp запросов,
@@ -175,6 +177,7 @@ def multiprocessing_ping_functions(available_ips, rangeip, file, speed):
     print('\n'+("-" * 80))
     print("[+] " + "icmp scan completed")
 
+
 def main():
     # Начальное время
     start_time = time.time()
@@ -228,6 +231,7 @@ def main():
             minutes = str(round(int(minutes) - int(hours) * 60, 0)).replace(".0", "")
             print('Elapsed time:', hours, "hours", minutes, ' minutes', second, 'second')
         print('Elapsed time:', minutes, 'minutes', second, 'second')
+
 
 if __name__ == "__main__":
     main()
