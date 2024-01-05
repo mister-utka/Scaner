@@ -197,6 +197,7 @@ def main():
     range_ip = options.rangeip
     # Указывается файл, куда будут сохранены ip адреса
     file = options.file
+    print("-" * 80)
     print(f'[+] file save: {file}')
     # Указываем скорость (количество процессов)
     speed = options.speed
