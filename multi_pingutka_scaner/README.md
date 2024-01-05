@@ -18,7 +18,7 @@ memory_limit = 4000 * 1024 * 1024
 
 Пример использования:
 
-python3 ping_scaner.py -r 192.168.0.0-192.168.255.255 -f file_save -s 100
+python3 multi_pingutka_scaner.py -r 192.168.0.0-192.168.255.255 -f file_save -s 100
 
 где:
 
