@@ -112,10 +112,11 @@ def multiprocessing_ping_functions(available_ips, rangeip, file, speed):
                     print(f"\r(.) {ip_address}\t\t{progress_bar}/{number_of_addresses_to_scan}", end="")
                 cmd.pop()
 
-    def split_list(lst, speed):
+    def split_list(available_ips, speed):
         """Функция разделяет список ip адресов на заданное количество частей (speed)."""
-        np_lst = np.array(lst)
+        np_lst = np.array(available_ips)
         split_lists = np.array_split(np_lst, speed)
+        del np_lst
         return split_lists
 
     def number_of_multiprocessors(available_ips, speed):
@@ -128,12 +129,14 @@ def multiprocessing_ping_functions(available_ips, rangeip, file, speed):
 
         # Разделяем полученные ip адреса на количество speed
         split_lists = split_list(available_ips, speed)
+        del available_ips
 
         # Создаем кортеж списков с разделенными диапазонами ip адресов
         for i, sublist in enumerate(split_lists):
             # print(sublist)
             values[i] = []
             values[i] = [sublist]
+        del split_lists
 
         # Получаем из этого кортежа списки, для того чтобы одновременно передать их процессам
         lst = {}
