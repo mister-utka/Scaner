@@ -11,7 +11,7 @@ import resource
 memory_limit = 4000 * 1024 * 1024
 
 # Определяем команду, которая будет выполняться
-cmd = ["ping", "-c", "2", "-w", "2"]
+cmd = ["ping", "-c", "3", "-w", "3"]
 
 
 def get_arguments():
@@ -21,14 +21,17 @@ def get_arguments():
 
     # Сначала мы указываем, что мы ожидаем от пользователя, в dest указываем куда мы занесем данные, а после сообщение
     # Здесь мы обучаем дочерний элемент парсить и создаем опции
-    parser.add_argument("-r", "--rangeip", dest="rangeip", help="Specify the range of ip addresses. "
-                                                                              "Example 10.10.10.1-10.10.10.255.")
-    parser.add_argument("-f", "--file", dest="file", help="Specified after the -r parameter. "
-                                                                        "Specify the file in which the found ip addresses will be saved. By default in.")
-    parser.add_argument("-s", "--speed", dest="speed", help="It is specified after the -r parameter. "
-                                                                          "Specify the speed (number of processes) which will be run in parallel. "
-                                                                          "Warning: A large number may cause the computer to freeze or disconnect clients from the access point! "
-                                                                          "It is recommended not to exceed 120 for Wi-Fi and 300 for a wired connection.")
+    parser.add_argument("-r", "--rangeip", dest="rangeip",
+                        help="Specify the range of ip addresses. "
+                             "Example 10.10.10.1-10.10.10.255.")
+    parser.add_argument("-f", "--file", dest="file",
+                        help="Specified after the -r parameter. "
+                             "Specify the file in which the found ip addresses will be saved. By default in.")
+    parser.add_argument("-s", "--speed", dest="speed",
+                        help="It is specified after the -r parameter. "
+                             "Specify the speed (number of processes) which will be run in parallel. "
+                             "Warning: A large number may cause the computer to freeze or disconnect clients from the access point! "
+                             "It is recommended not to exceed 120 for Wi-Fi and 300 for a wired connection.")
 
     # Он пройдется по введенным значениям пользователем и разобьет их на аргументы и значения
     options = parser.parse_args()
@@ -95,15 +98,18 @@ def multiprocessing_ping_functions(available_ips, rangeip, file, speed):
                 ip_address_result = subprocess.check_output(cmd, stderr=subprocess.DEVNULL)
                 cmd.pop()
                 if (r'\s\d%', ip_address_result):
-                    print('\r' + " " * 60, end="")
-                    print('\r' + " " * 60 + f"\r(!) {ip_address}" + " " * 100)
+                    print('\r' + " " * 30, end="")
+                    print('\r' + " " * 30 + f"\r(!) {ip_address}" + " " * 100)
                     with open(file, "a") as file_ip_session:
                         file_ip_session.write(ip_address + "\n")
             except subprocess.CalledProcessError:
 
                 if progress_bar > number_of_addresses_to_scan:
                     progress_bar = number_of_addresses_to_scan
-                print(f"\r(.) {ip_address}  \t\t{progress_bar}/{number_of_addresses_to_scan}", end="")
+                if len(ip_address) <= 11:
+                    print(f"\r(.) {ip_address}\t\t\t{progress_bar}/{number_of_addresses_to_scan}", end="")
+                else:
+                    print(f"\r(.) {ip_address}\t\t{progress_bar}/{number_of_addresses_to_scan}", end="")
                 cmd.pop()
 
     def split_list(lst, speed):
