@@ -1,4 +1,6 @@
 #/usr/bin/python3
+from memory_profiler import profile
+
 import subprocess
 import socket
 import multiprocessing
@@ -98,12 +100,15 @@ def multiprocessing_ping_functions(available_ips, rangeip, file, speed):
                 ip_address_result = subprocess.check_output(cmd, stderr=subprocess.DEVNULL)
                 cmd.pop()
                 if (r'\s\d%', ip_address_result):
-                    print('\r' + " " * 30, end="")
-                    print('\r' + " " * 30 + f"\r(!) {ip_address}" + " " * 100)
+                    print('\r' + " " * 35, end="")
+                    print('\r' + " " * 35 + f"\r(!) {ip_address}" + " " * 35)
                     with open(file, "a") as file_ip_session:
                         file_ip_session.write(ip_address + "\n")
+                if ip_address:
+                    del ip_address
+                if ip_address_result:
+                    del ip_address_result
             except subprocess.CalledProcessError:
-
                 if progress_bar > number_of_addresses_to_scan:
                     progress_bar = number_of_addresses_to_scan
                 if len(ip_address) <= 11:
@@ -111,6 +116,7 @@ def multiprocessing_ping_functions(available_ips, rangeip, file, speed):
                 else:
                     print(f"\r(.) {ip_address}\t\t{progress_bar}/{number_of_addresses_to_scan}", end="")
                 cmd.pop()
+
 
     def split_list(available_ips, speed):
         """Функция разделяет список ip адресов на заданное количество частей (speed)."""
@@ -122,27 +128,23 @@ def multiprocessing_ping_functions(available_ips, rangeip, file, speed):
     def number_of_multiprocessors(available_ips, speed):
         """Функция, которая создает процессы в кол-ве, зависимом от переданном speed"""
 
-        # Создадим переменные, которым будем назначать части диапазонов ip адресов
-        values = []
-        for v in range(1, speed + 1):
-            values.append("var" + str(v))
+        # Создадим генератор, который будет возвращать каждую часть available_ips по мере необходимости
+        def get_ip_ranges(ips, speed):
+            split_lists = split_list(ips, speed)
+            for sublist in split_lists:
+                yield sublist
 
-        # Разделяем полученные ip адреса на количество speed
-        split_lists = split_list(available_ips, speed)
-        del available_ips
+        # Используем генераторное выражение для создания списка значений
+        values = [f"var{v}" for v in range(1, speed + 1)]
 
-        # Создаем кортеж списков с разделенными диапазонами ip адресов
-        for i, sublist in enumerate(split_lists):
-            # print(sublist)
-            values[i] = []
-            values[i] = [sublist]
-        del split_lists
-
-        # Получаем из этого кортежа списки, для того чтобы одновременно передать их процессам
+        # Используем генератор для получения каждой части available_ips
         lst = {}
+        ip_ranges = get_ip_ranges(available_ips, speed)
         for i in range(speed):
-            arr = np.array(values[i])
-            lst[f"lst{i + 1}"] = arr[0].tolist()
+            lst[f"lst{i + 1}"] = next(ip_ranges)
+
+        # Освобождаем память, удаляя ненужные переменные
+        del available_ips
 
         try:
             # создание процессов
@@ -232,15 +234,16 @@ def main():
     elapsed_time = round(end_time - start_time, 2)
 
     if elapsed_time < 60:
-        print('Elapsed time: ', elapsed_time, ' second')
-    elif 60 < elapsed_time < 3600:
-        minutes = str(round(elapsed_time/60, 0)).replace(".0", "")
-        second = str(round(elapsed_time - int(minutes)*60, 0)).replace(".0", "")
-        if int(minutes) > 60:
-            hours = str(round(int(minutes)/60, 0)).replace(".0", "")
-            minutes = str(round(int(minutes) - int(hours) * 60, 0)).replace(".0", "")
-            print('Elapsed time:', hours, "hours", minutes, ' minutes', second, 'second')
-        print('Elapsed time:', minutes, 'minutes', second, 'second')
+        print('Elapsed time:', elapsed_time, 'second')
+    elif 60 <= elapsed_time < 3600:
+        minutes = int(elapsed_time / 60)
+        seconds = int(elapsed_time - minutes * 60)
+        print('Elapsed time:', minutes, 'minutes', seconds, 'seconds')
+    else:
+        hours = int(elapsed_time / 3600)
+        minutes = int((elapsed_time - hours * 3600) / 60)
+        seconds = int(elapsed_time - hours * 3600 - minutes * 60)
+        print('Elapsed time:', hours, 'hours', minutes, 'minutes', seconds, 'seconds')
 
 
 if __name__ == "__main__":
