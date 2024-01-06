@@ -223,6 +223,8 @@ def main():
             # Выполнение мультипроцессорного icmp-сканирования сети
             multiprocessing_ping_functions(available_ips, range_ip, file, speed)
         except KeyboardInterrupt:
+            for i in range(100):
+                print("\r"+" "*40)
             print("\n[+] Detected CTRL + C ..... stopping")
             quit()
 
