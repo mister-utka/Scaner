@@ -1,6 +1,4 @@
 #/usr/bin/python3
-from memory_profiler import profile
-
 import subprocess
 import socket
 import multiprocessing
