@@ -1,4 +1,6 @@
 #/usr/bin/python3
+from memory_profiler import profile
+
 import subprocess
 import socket
 import multiprocessing
@@ -77,7 +79,7 @@ def get_available_ips(start_ip, end_ip):
     print("-" * 80)
     return result, numbers  # Возвращаем список доступных IP-адресов
 
-
+@profile
 def multiprocessing_ping_functions(available_ips, rangeip, file, speed):
     """Функция выполняет сканирование сети с помощью параллельного выполнения icmp запросов,
        что позволяет нам значительно увеличить скорость"""
@@ -224,6 +226,7 @@ def main():
             multiprocessing_ping_functions(available_ips, range_ip, file, speed)
         except KeyboardInterrupt:
             print("\n[+] Detected CTRL + C ..... stopping")
+            quit()
 
     # Конечное время
     end_time = time.time()
