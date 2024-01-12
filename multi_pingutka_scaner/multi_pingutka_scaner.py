@@ -9,7 +9,7 @@ import resource
 
 
 # Определяем максимальный размер памяти в байтах (например, 4GB)
-memory_limit = 1000 * 1024 * 1024
+memory_limit = 2000 * 1024 * 1024
 
 # Определяем команду, которая будет выполняться
 cmd = ["ping", "-c", "3", "-w", "3"]
@@ -114,17 +114,7 @@ def multiprocessing_ping_functions(start_ip, end_ip, speed, file):
     # Вычисляем общее количество IP-адресов в диапазоне
     total_ips = int(end_ip_obj) - int(start_ip_obj) + 1
 
-    closest_number = 1
-    min_remainder = total_ips % closest_number
-
-    for i in range(2, speed + 1):
-        remainder = total_ips % i
-        if remainder < min_remainder or min_remainder == 0:
-            closest_number = i
-            min_remainder = remainder
-
-    speed = closest_number
-    print(f"[+] speed: {closest_number}")
+    print(f"[+] speed: {speed}")
 
     print("[+] " + str(total_ips) + " ip addresses will be checked")
     print("-"*80)
@@ -132,6 +122,7 @@ def multiprocessing_ping_functions(start_ip, end_ip, speed, file):
 
     # Разбиваем общее количество IP-адресов на число процессов
     chunk_size = total_ips // speed
+    remainder = total_ips % speed  # Вычисляем остаток
 
     # Создаем процессы
     processes = []
@@ -139,8 +130,8 @@ def multiprocessing_ping_functions(start_ip, end_ip, speed, file):
         # Вычисляем начальный и конечный IP-адреса для каждого процесса
         start = start_ip_obj + i * chunk_size
         end = start + chunk_size - 1
-        if i == speed - 1:  # Последний процесс может получить немного больше IP-адресов, чтобы учесть остаток
-            end = end_ip_obj
+        if i < remainder:  # Распределяем остаток между первыми процессами
+            end += 1
 
         # Создаем генератор IP-адресов для каждого процесса
         ip_gen = get_available_ips(str(start), str(end))
