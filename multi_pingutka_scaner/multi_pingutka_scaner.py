@@ -1,17 +1,14 @@
 import subprocess
-import time
-
+from datetime import datetime
 import socket
-import multiprocessing
-import ipaddress
 import argparse
-import resource
+import concurrent.futures
+import re
+import ipaddress
+
+from alive_progress import alive_bar
 
 
-# Определяем максимальный размер памяти в байтах (например, 4GB)
-memory_limit = 2000 * 1024 * 1024
-
-# Определяем команду, которая будет выполняться
 cmd = ["ping", "-c", "3", "-w", "3"]
 
 
@@ -74,85 +71,12 @@ def get_available_ips(start_ip, end_ip):
     return ip_gen
 
 
-def process_func(ip_gen, total_ips, speed, file):
-    """Функция, которая вызывается при создании процесса"""
-    progress_bar = 0
-    for ip_addr in ip_gen:
-        progress_bar += 1 * speed
-
-        try:
-            cmd.append(ip_addr)
-            output = subprocess.check_output(cmd)
-            cmd.pop()
-
-            if (r'\s\d%', output):
-                print('\r' + " " * 35, end="")
-                print('\r' + " " * 35 + f"\r(!) {ip_addr}" + " " * 35)
-                with open(file, 'a') as f:
-                    f.write(ip_addr + "\n")
-                time.sleep(0.95)
-
-        except subprocess.CalledProcessError:
-            if progress_bar > total_ips:
-                progress_bar = total_ips
-            if len(ip_addr) <= 11:
-                print(f"\r(.) {ip_addr}\t\t\t{progress_bar}/{total_ips}", end="")
-            else:
-                print(f"\r(.) {ip_addr}\t\t{progress_bar}/{total_ips}", end="")
-            cmd.pop()
-
-        except KeyboardInterrupt:
-            pass
-
-
-def multiprocessing_ping_functions(start_ip, end_ip, speed, file):
-    print("Calculating IP addresses...")
-    # Преобразуем начальный и конечный IP-адреса в объекты ipaddress.IPv4Address
-    start_ip_obj = ipaddress.IPv4Address(start_ip)
-    end_ip_obj = ipaddress.IPv4Address(end_ip)
-
-    # Вычисляем общее количество IP-адресов в диапазоне
-    total_ips = int(end_ip_obj) - int(start_ip_obj) + 1
-
-    print(f"[+] speed: {speed}")
-
-    print("[+] " + str(total_ips) + " ip addresses will be checked")
-    print("-"*80)
-    time.sleep(2)
-
-    # Разбиваем общее количество IP-адресов на число процессов
-    chunk_size = total_ips // speed
-    remainder = total_ips % speed  # Вычисляем остаток
-
-    # Создаем процессы
-    processes = []
-    for i in range(speed):
-        # Вычисляем начальный и конечный IP-адреса для каждого процесса
-        start = start_ip_obj + i * chunk_size
-        end = start + chunk_size - 1
-        if i < remainder:  # Распределяем остаток между первыми процессами
-            end += 1
-
-        # Создаем генератор IP-адресов для каждого процесса
-        ip_gen = get_available_ips(str(start), str(end))
-
-        # Создаем процесс
-        process = multiprocessing.Process(target=process_func, args=(ip_gen, total_ips, speed, file))
-        processes.append(process)
-
+def ping_ip_addr(ip_addr, cmd):
     try:
-        # Запускаем процессы
-        for process in processes:
-            process.start()
-
-        # Ожидаем завершения процессов
-        for process in processes:
-            process.join()
-    except KeyboardInterrupt:
-        print("\n[+] Detected CTRL + C ..... stopping")
-        # Завершаем процессы
-        for process in processes:
-            process.terminate()
+        ip_address_result = subprocess.check_output(cmd + ip_addr.split(" "))
+        return ip_address_result
+    except subprocess.CalledProcessError:
+        pass
 
 
 def file_ip_sorted(file):
@@ -174,11 +98,8 @@ def file_ip_sorted(file):
 
 
 def main():
-    # Устанавливаем ограничение на использование памяти
-    resource.setrlimit(resource.RLIMIT_AS, (memory_limit, memory_limit))
 
-    # Начальное время
-    start_time = time.time()
+    start_time = datetime.now()
 
     # Парсим аргументы, переданные пользователем
     options = get_arguments()
@@ -186,13 +107,18 @@ def main():
     range_ip = options.rangeip.split('-')
     start_ip = range_ip[0]
     end_ip = range_ip[1]
+    ip_addr_list = get_available_ips(start_ip, end_ip)
+
+    # Преобразуем начальный и конечный IP-адреса в объекты ipaddress.IPv4Address
+    start_ip_obj = ipaddress.IPv4Address(start_ip)
+    end_ip_obj = ipaddress.IPv4Address(end_ip)
+    # Вычисляем общее количество IP-адресов в диапазоне
+    total_ips = int(end_ip_obj) - int(start_ip_obj) + 1
 
     # Указывается файл, куда будут сохранены ip адреса
     file = options.file
-    print("-" * 80)
-    print(f'[+] file save: {file}')
 
-    # Указываем скорость (количество процессов)
+    # Указываем скорость (количество потоков)
     speed = options.speed
     if options.speed == None:
         speed = 100
@@ -202,26 +128,41 @@ def main():
     with open(file, 'w'):
         pass
 
-    multiprocessing_ping_functions(start_ip, end_ip, speed, file)
+    print("-" * 96)
+    print(f'[+] file save: {file}')
+    print(f"[+] speed: {speed}")
+    print("[+] " + str(total_ips) + " ip addresses will be checked")
+    print("-" * 96)
+
+    # Запуск сканирования
+    with concurrent.futures.ThreadPoolExecutor(max_workers=1000) as executor:
+        futures = []
+        # Прогресс-бар для запуска потоков
+        print("Starting scan streams:")
+        with alive_bar(total_ips) as bar:
+            for ip_addr in ip_addr_list:
+                future = executor.submit(ping_ip_addr, ip_addr, cmd)
+                futures.append(future)
+                bar()
+        # Прогресс-бар для завершения потоков
+        with alive_bar(total_ips) as bar:
+            print("Scanning:")
+            for future in concurrent.futures.as_completed(futures):
+                result = future.result()
+                # Получим из вывода только ip-адреса, которые ответил на пинг и запишем их в файл
+                if result != None:
+                    result = str(result)
+                    if re.search(r'\s\d%', result):
+                        match = re.search(r'(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})', result)
+                        ip_addr_write = match.group(1)
+                        with open(file, 'a') as f:
+                            f.write(ip_addr_write + "\n")
+                bar()
+
+    # Сортируем ip-адреса в файле
     file_ip_sorted(file)
 
-    # Конечное время
-    end_time = time.time()
-
-    # Разница между конечным и начальным временем
-    elapsed_time = round(end_time - start_time, 2)
-
-    if elapsed_time < 60:
-        print('\nElapsed time:', elapsed_time, 'second')
-    elif 60 <= elapsed_time < 3600:
-        minutes = int(elapsed_time / 60)
-        seconds = int(elapsed_time - minutes * 60)
-        print('\nElapsed time:', minutes, 'minutes', seconds, 'seconds')
-    else:
-        hours = int(elapsed_time / 3600)
-        minutes = int((elapsed_time - hours * 3600) / 60)
-        seconds = int(elapsed_time - hours * 3600 - minutes * 60)
-        print('\nElapsed time:', hours, 'hours', minutes, 'minutes', seconds, 'seconds')
+    print(datetime.now() - start_time)
 
 
 if __name__ == "__main__":
