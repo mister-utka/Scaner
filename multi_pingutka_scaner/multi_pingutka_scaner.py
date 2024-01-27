@@ -8,8 +8,6 @@ import ipaddress
 
 from alive_progress import alive_bar
 
-import time
-from pprint import pprint
 
 cmd = ["ping", "-c", "3", "-w", "3"]
 
