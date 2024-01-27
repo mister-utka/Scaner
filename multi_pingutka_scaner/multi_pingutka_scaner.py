@@ -8,6 +8,8 @@ import ipaddress
 
 from alive_progress import alive_bar
 
+import time
+from pprint import pprint
 
 cmd = ["ping", "-c", "3", "-w", "3"]
 
@@ -134,30 +136,41 @@ def main():
     print("[+] " + str(total_ips) + " ip addresses will be checked")
     print("-" * 96)
 
-    # Запуск сканирования
-    with concurrent.futures.ThreadPoolExecutor(max_workers=1000) as executor:
-        futures = []
-        # Прогресс-бар для запуска потоков
-        print("Starting scan streams:")
-        with alive_bar(total_ips) as bar:
-            for ip_addr in ip_addr_list:
-                future = executor.submit(ping_ip_addr, ip_addr, cmd)
-                futures.append(future)
-                bar()
-        # Прогресс-бар для завершения потоков
-        with alive_bar(total_ips) as bar:
-            print("Scanning:")
-            for future in concurrent.futures.as_completed(futures):
-                result = future.result()
-                # Получим из вывода только ip-адреса, которые ответил на пинг и запишем их в файл
-                if result != None:
-                    result = str(result)
-                    if re.search(r'\s\d%', result):
-                        match = re.search(r'(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})', result)
-                        ip_addr_write = match.group(1)
-                        with open(file, 'a') as f:
-                            f.write(ip_addr_write + "\n")
-                bar()
+    # Так как потоки будут запускаться пачками по 65536 штук, нам нужно узнать сколько циклов на это потребудется
+    range_for = total_ips // 65536
+    # Переменная для приостановки создания потоков
+    flag = 0
+
+    # Создадим прогресс-бар
+    with alive_bar(total_ips) as bar:
+
+        # Запуск сканирования
+        for i in range(range_for + 1):
+
+            with concurrent.futures.ThreadPoolExecutor(max_workers=speed) as executor:
+                futures = []
+
+                for ip_addr in ip_addr_list:
+                    future = executor.submit(ping_ip_addr, ip_addr, cmd)
+                    futures.append(future)
+                    flag += 1
+                    # Если мы превысили ограничения по количеству созданных потоков, переходим к обработке ответов
+                    if flag >= 65536:
+                        break
+
+                for future in concurrent.futures.as_completed(futures):
+                    result = future.result()
+                    # Получим из вывода только ip-адреса, которые ответил на пинг и запишем их в файл
+                    if result != None:
+                        result = str(result)
+                        if re.search(r'\s\d%', result):
+                            match = re.search(r'(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})', result)
+                            ip_addr_write = match.group(1)
+                            with open(file, 'a') as f:
+                                   f.write(ip_addr_write + "\n")
+                    bar()
+            # После того как были обработаны ответы от пачки, запускаем следующею
+            flag = 0
 
     # Сортируем ip-адреса в файле
     file_ip_sorted(file)
