@@ -9,13 +9,6 @@ cmd = ["nmap", "-sS", "-sV", "-O"]
 
 Предупреждения!
 
-В коде предусмотренно ограничение на выделение памяти ОЗУ, так как без него программа может поглотить ее всю, что приведет
-к зависанию компьютера. Вы можете регулировать это в строчке 
-
-memory_limit = 2000 * 1024 * 1024
-
-где число 2000 - это выделение памяти в МБ.
-
 Так же при подключении по беспроводной сети и выставлении очень большой скорости у клиентов может пропасть подключение,
 что может выдать Вас. Рекомендуется запустить ping в соседнем терминале до какого нибудь доменного ресурса, и, если при
 работе программы эти ping-и начинают теряться, значит точка не справляется с потоком большого количества маленьких пакетов. 
@@ -46,13 +39,6 @@ The speed depends on the type of your connection and the power of the hardware. 
 scans.
 
 Warnings!
-
-The code provides a limit on the allocation of RAM memory, since without it the program can absorb it all, which will cause
-the computer to freeze. You can adjust this in the line
-
-memory_limit = 2000 * 1024 * 1024
-
-where the number 2000 is the memory allocation in MB.
 
 Also, when connecting wirelessly and setting a very high speed, clients may lose their connection,
 which may give you away. It is recommended to run ping in a neighboring terminal to some domain resource, and if
