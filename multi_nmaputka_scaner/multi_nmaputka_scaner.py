@@ -1,14 +1,13 @@
-import subprocess
+from subprocess import check_output
 import re
 import socket
+import multiprocessing
+import numpy as np
 import argparse
-import concurrent.futures
+import resource
 
-from alive_progress import alive_bar
-
-import time
-
-start_time = time.perf_counter()
+# Определяем максимальный размер памяти в байтах (например, 2GB)
+memory_limit = 2000 * 1024 * 1024
 
 # Определяем команду, которая будет выполняться
 cmd = ["nmap", "-sS", "-sV", "-O"]
@@ -57,59 +56,118 @@ def check_ip(ip):
         return False  # Возвращаем False, если IP-адрес некорректный
 
 
-def ip_generator(file_path):
-    with open(file_path, 'r') as file:
-        for line in file:
-            ip_address = line.strip()
-            yield ip_address
+def multiprocessing_nmap_functions(list_ip_address_target, file_save, speed, clear_ip):
+    """Функция выполняет сканирование сети с помощью параллельного выполнения icmp запросов,
+       что позволяет нам значительно увеличить скорость"""
+    global progres_bar
+    progres_bar = 0
 
+    def nmap_scan(list_ip_address_target):
+        """Функция, которая вызывается при создании процессов"""
+        for ip_address_target in list_ip_address_target:
 
-def nmap_scan(ip_address_target, file_save, clear_ip):
-    """Функция, которая вызывается при создании процессов"""
+            check = check_ip(ip_address_target)
+            if check == False:
+                print(f"")
 
-    check = check_ip(ip_address_target)
-    if check == True:
+            global progres_bar
+            progres_bar += 1*speed
 
-        try:
-            ip_address_result = subprocess.check_output(cmd + ip_address_target.split(" "))
-            #return ip_address_result
-        except subprocess.CalledProcessError:
-            pass
-
-        nmap_string = ip_address_result.decode('utf-8')
-        information_output = ip_address_target + "\n"
-        try:
-            # Получаем OS
-            os = re.search(r"OS details: (.*)", nmap_string)
-            information_output = information_output + os[1] + "\n"
-        except TypeError:
-            pass
-        try:
-            # Получаем открытые порты
-            ports = re.findall(r"\d+/tcp.*", nmap_string)
-            for line in ports:
-                information_output = information_output + line + "\n"
-        except TypeError:
-            pass
-
-        #print(f'info: {information_output}')
-        # Если задан параметр -c, то получаем только ip адреса, у которых был не 0 вывод
-        if clear_ip:
-            if len(information_output) < 16:
+            cmd.append(ip_address_target)
+            nmap = check_output(cmd)
+            cmd.pop()
+            nmap_string = nmap.decode('utf-8')
+            information_output = ip_address_target + "\n"
+            try:
+                # Получаем OS
+                os = re.search(r"OS details: (.*)", nmap_string)
+                information_output = information_output + os[1] + "\n"
+            except TypeError:
                 pass
-            else:
-                with (open(f"{file_save}_nmap_session", "a") as file_nmap_session):
-                    match = re.search(r'(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})', information_output)
-                    ip_address = match.group(1) + "\n"
-                    file_nmap_session.write(ip_address)
-        else:
-            if len(information_output) < 16:
+            try:
+                # Получаем открытые порты
+                ports = re.findall(r"\d+/tcp.*", nmap_string)
+                for line in ports:
+                    information_output = information_output + line + "\n"
+            except TypeError:
                 pass
+
+            #print(f'info: {information_output}')
+            # Если задан параметр -c, то получаем только ip адреса, у которых был не 0 вывод
+            if clear_ip:
+                if len(information_output) < 16:
+                    pass
+                else:
+                    with (open(f"{file_save}_nmap_session", "a") as file_nmap_session):
+                        match = re.search(r'(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})', information_output)
+                        ip_address = match.group(1) + "\n"
+                        print('\r' + " " * 30, end="")
+                        print(f'\r(!) {ip_address}', end="")
+                        file_nmap_session.write(ip_address)
             else:
-                with open(f"{file_save}_nmap_session", "a") as file_nmap_session:
-                    match = re.search(r'(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})', information_output)
-                    ip_address = match.group(1) + "\n"
-                    file_nmap_session.write(information_output + ("-" * 117) + "\n")
+                if len(information_output) < 16:
+                    pass
+                else:
+                    with open(f"{file_save}_nmap_session", "a") as file_nmap_session:
+                        match = re.search(r'(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})', information_output)
+                        ip_address = match.group(1) + "\n"
+                        print('\r' + " " * 30, end="")
+                        print(f'\r(!) {ip_address}', end="")
+                        file_nmap_session.write(information_output + ("-" * 117) + "\n")
+            print(f"\r(.) progress: {progres_bar}", end="")
+
+    def split_list(lst, speed):
+        """Функция разделяет список ip адресов на заданное количество частей (speed)."""
+        np_lst = np.array(lst)
+        split_lists = np.array_split(np_lst, speed)
+        return split_lists
+
+    def number_of_multiprocessors(list_ip_address_target, speed):
+        """Функция, которая создает процессы в кол-ве, зависимом от переданном num_parts"""
+
+        # Создадим переменные, которым будем назначать части диапазонов ip адресов
+        values = []
+        for v in range(1, speed + 1):
+            values.append("var" + str(v))
+
+        # Разделяем полученные ip адреса на количество num_parts
+        split_lists = split_list(list_ip_address_target, speed)
+
+        # Создаем кортеж списков с разделенными диапазонами ip адресов
+        for i, sublist in enumerate(split_lists):
+            values[i] = []
+            values[i] = [sublist]
+
+        # Получаем из этого кортежа списки, для того чтобы одновременно передать их процессам
+        lst = {}
+        for i in range(speed):
+            arr = np.array(values[i])
+            lst[f"lst{i + 1}"] = arr[0].tolist()
+
+        # создание процессов
+        processes = []
+        for i in range(1, speed + 1):
+            process = multiprocessing.Process(target=nmap_scan, args=(lst[f"lst{i}"],))
+            processes.append(process)
+
+        # Запуск процессов
+        for process in processes:
+            process.start()
+
+        # Ожидание завершения процессов
+        for process in processes:
+            process.join()
+
+    # Очищаем файл, куда пишутся nmap вывод, перед новой сессией
+    with open(f"{file_save}_nmap_session", "w"):
+        pass
+    print("-" * 80)
+    print("[+] " + f"Start nmap-scanning. {speed} processes are running")
+    print("-" * 80)
+    # Запускаем процессы
+    number_of_multiprocessors(list_ip_address_target, speed)
+    print("\n" + "-" * 80)
+    print("[+] " + f"End nmap-scanning.")
 
 
 def sorting_nmap_out(file_save, clear_ip):
@@ -166,10 +224,6 @@ def sorting_nmap_out(file_save, clear_ip):
     def nmap_session_sorted_windows(file_save):
         """Так же отсортируем отдельно машины Windows и запишем их в файл windows_devices"""
 
-        # Очищаем файл, куда пишутся nmap вывод, перед новой сессией
-        with open(f"{file_save}_windows_devices", "w"):
-            pass
-
         # Получаем с помощью re выражения все машины Windows
         with open(f'{file_save}_nmap_session_sorted', 'r') as file:
             # Считываем все строки файла в одну строку
@@ -189,77 +243,43 @@ def sorting_nmap_out(file_save, clear_ip):
 
 
 def main():
+    # Устанавливаем ограничение на использование памяти
+    resource.setrlimit(resource.RLIMIT_AS, (memory_limit, memory_limit))
 
     # Парсим аргументы, переданные пользователем
     options = get_arguments()
 
     # Указывается файл, откуда будут считываться ip-адреса
     range_file = options.range
-    # Узнаем количество ip-адресов в файле
-    try:
-        with open(range_file, 'r') as file:
-            lines = file.readlines()
-            total_ips = len(lines)
-    except FileNotFoundError:
-        print(f"[-] The file {range_file} does not exist. Check if the path is specified correctly")
-        quit()
-
     # Указывается ключевое слово для сессии
     file_save = options.file
-    # Очищаем файл, куда пишутся nmap вывод, перед новой сессией
-    with open(f"{file_save}_nmap_session", "w"):
-        pass
-
-    # Указываем скорость (количество потоков)
+    print(f"[+] file session save:\t\t {file_save}_nmap_session\n"
+          f"    file session sorted save:\t {file_save}_nmap_session_sorted")
+    # Указываем скорость (количество процессов)
     speed = options.speed
     # Указываем, нужно ли получить только ip-адреса
     clear_ip = options.clear_ip
-
-    if options.speed == None:
+    if not options.speed == None:
+        print(f'[+] speed: {speed}')
+    else:
         speed = 50
+        print(f'[+] speed: {speed}')
     speed = int(speed)
-
-    print("-" * 96)
-    print(f"[+] file session save:\t\t {file_save}_nmap_session\n"
-          f"    file session sorted save:\t {file_save}_nmap_session_sorted")
-    print(f'[+] speed: {speed}')
-    print("-" * 96)
-
-    # Так как потоки будут запускаться пачками по 65536 штук, нам нужно узнать сколько циклов на это потребуется
-    range_for = total_ips // 1000
-    # Переменная для приостановки создания потоков
-    flag = 0
-
-    # Создадим прогресс-бар
-    with alive_bar(total_ips) as bar:
-
-        # Запуск сканирования
-        for i in range(range_for + 1):
-
-            with concurrent.futures.ThreadPoolExecutor(max_workers=speed) as executor:
-                futures = []
-
-                for ip_address_target in ip_generator(range_file):
-
-                    future = executor.submit(nmap_scan, ip_address_target, file_save, clear_ip)
-                    futures.append(future)
-                    flag += 1
-                    # Если мы превысили ограничения по количеству созданных потоков, переходим к обработке ответов
-                    if flag >= 1000:
-                        break
-
-                for future in concurrent.futures.as_completed(futures):
-                    result = future.result()
-                    bar()
-            # После того как были обработаны ответы от пачки, запускаем следующею
-            flag = 0
-
+    try:
+        # Получим список ip-адресов, которые будут сканироваться nmap-ом
+        with open(range_file, "r") as f:
+            list_ip_address_target = []
+            for ip_address_target in f:
+                # print(ip_address_target.rstrip())
+                list_ip_address_target.append(ip_address_target.rstrip())
+    except FileNotFoundError:
+        print(f"[-] The file {range_file} does not exist. Check if the path is specified correctly")
+        quit()
+    # Запуск мультипроцессорного nmap сканирования
+    multiprocessing_nmap_functions(list_ip_address_target, file_save, speed, clear_ip)
     # Отсортируем данные, записанные процессами
     sorting_nmap_out(file_save, clear_ip)
 
+
 if __name__ == "__main__":
     main()
-    end_time = time.perf_counter()
-    execution_time = end_time - start_time
-
-    print(f"Время выполнения: {execution_time} секунд")
