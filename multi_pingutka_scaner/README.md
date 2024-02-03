@@ -5,13 +5,6 @@
 
 Предупреждения!
 
-В коде предусмотренно ограничение на выделение памяти ОЗУ, так как без него программа может поглотить ее всю, что приведет
-к зависанию компьютера. Вы можете регулировать это в строчке 
-
-memory_limit = 4000 * 1024 * 1024
-
-где число 4000 - это выделение памяти в МБ.
-
 Так же при подключении по беспроводной сети и выставлении очень большой скорости у клиентов может пропасть подключение,
 что может выдать Вас. Рекомендуется запустить ping в соседнем терминале до какого нибудь доменного ресурса, и, если при
 работе программы эти ping-и начинают теряться, значит точка не справляется с потоком большого количества маленьких пакетов. 
@@ -26,7 +19,7 @@ python3 multi_pingutka_scaner.py -r 192.168.0.0-192.168.255.255 -f file_save -s 
 
 -f - файл, куда будет сохранен результат (будет заполнен после окончания сканирования)
 
--s - количество параллельных процессов, которые будут запущены (по умолчанию 100)
+-s - количество параллельных потоков, которые будут запущены (по умолчанию 100)
 
 ########################################################################################################################
 
@@ -36,13 +29,6 @@ The speed depends on the type of your connection and the power of the hardware. 
 parallel icmp requests. 
 
 Warnings!
-
-The code provides a limit on the allocation of RAM memory, since without it the program can eat it all, which will cause
-the computer to freeze. You can adjust this in the line 
-
-memory_limit = 4000 * 1024 * 1024
-
-where the number 4000 is the memory allocation in MB.
 
 Also, when connecting wirelessly and setting a very high speed, customers may lose their connection,
 which could give you away. It is recommended to run ping in a neighboring terminal to some domain resource, and if
@@ -59,4 +45,4 @@ where:
 
 -f - file where the result will be saved (it will be filled in after the scan is completed)
 
--s is the number of parallel processes to be started (100 by default)
+-s is the number of parallel thread to be started (100 by default)

@@ -5,6 +5,7 @@ import argparse
 import concurrent.futures
 import re
 import ipaddress
+import struct
 
 from alive_progress import alive_bar
 
@@ -52,23 +53,12 @@ def check_ip(ip):
 
 
 def get_available_ips(start_ip, end_ip):
-    """Ленивый генератор для получения доступных IP-адресов"""
-    start = list(map(int, start_ip.split('.')))  # Разбиваем начальный IP-адрес на отдельные октеты
-    end = list(map(int, end_ip.split('.')))  # Разбиваем конечный IP-адрес на отдельные октеты
+    start = struct.unpack('!I', socket.inet_aton(start_ip))[0]
+    end = struct.unpack('!I', socket.inet_aton(end_ip))[0]
 
-    def ip_generator():
-        while start <= end:
-            ip = '.'.join(map(str, start))  # Собираем IP-адрес из октетов
-            if check_ip(ip):  # Проверяем корректность IP-адреса
-                yield ip  # Возвращаем доступный IP-адрес
-            start[3] += 1  # Увеличиваем последний октет на 1
-            for i in (3, 2, 1):
-                if start[i] == 256:  # Если октет равен 256, переходим к следующему октету
-                    start[i] = 0
-                    start[i-1] += 1
-
-    ip_gen = ip_generator()
-    return ip_gen
+    for ip in range(start, end + 1):
+        ip_address = socket.inet_ntoa(struct.pack('!I', ip))
+        yield ip_address
 
 
 def ping_ip_addr(ip_addr, cmd):
@@ -149,6 +139,7 @@ def main():
                 futures = []
 
                 for ip_addr in ip_addr_list:
+
                     future = executor.submit(ping_ip_addr, ip_addr, cmd)
                     futures.append(future)
                     flag += 1
