@@ -220,37 +220,44 @@ def main():
     print(f'[+] speed: {speed}')
     print("-" * 96)
 
+    pack = total_ips
     # Так как потоки будут запускаться пачками по 65536 штук, нам нужно узнать сколько циклов на это потребуется
-    range_for = total_ips // 1000
+    range_for = total_ips // pack
     # Переменная для приостановки создания потоков
     flag = 0
 
-    # Создадим прогресс-бар
-    with alive_bar(total_ips) as bar:
+    try:
 
-        # Запуск сканирования
-        for i in range(range_for + 1):
+        # Создадим прогресс-бар
+        with alive_bar(total_ips) as bar:
 
-            with concurrent.futures.ThreadPoolExecutor(max_workers=speed) as executor:
-                futures = []
+            # Запуск сканирования
+            for i in range(range_for):
 
-                for ip_address_target in ip_generator(range_file):
+                with concurrent.futures.ThreadPoolExecutor(max_workers=speed) as executor:
+                    futures = []
 
-                    future = executor.submit(nmap_scan, ip_address_target, file_save, clear_ip)
-                    futures.append(future)
-                    flag += 1
-                    # Если мы превысили ограничения по количеству созданных потоков, переходим к обработке ответов
-                    if flag >= 1000:
-                        break
+                    for ip_address_target in ip_generator(range_file):
 
-                for future in concurrent.futures.as_completed(futures):
-                    result = future.result()
-                    bar()
-            # После того как были обработаны ответы от пачки, запускаем следующею
-            flag = 0
+                        future = executor.submit(nmap_scan, ip_address_target, file_save, clear_ip)
+                        futures.append(future)
+                        flag += 1
 
-    # Отсортируем данные, записанные процессами
-    sorting_nmap_out(file_save, clear_ip)
+                        # Если мы превысили ограничения по количеству созданных потоков, переходим к обработке ответов
+                        if flag >= pack:
+
+                            for future in concurrent.futures.as_completed(futures):
+                                result = future.result()
+                                bar()
+                            # После того как были обработаны ответы от пачки, запускаем следующею
+                            flag = 0
+
+        # Отсортируем данные, записанные процессами
+        sorting_nmap_out(file_save, clear_ip)
+
+    except UnboundLocalError:
+        print("[-] yuo root?")
+        quit()
 
 if __name__ == "__main__":
     main()
