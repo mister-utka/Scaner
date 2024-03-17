@@ -1,11 +1,11 @@
 import subprocess
 from datetime import datetime
-import socket
 import argparse
 import concurrent.futures
 import re
 import ipaddress
 import struct
+import socket
 
 from alive_progress import alive_bar
 
@@ -159,16 +159,14 @@ def ping_scanning(file, speed, total_ips, ip_addr_list):
             flag = 0
 
 
-def calculating_the_range(range_ip):
+def calculating_the_range(start_ip, end_ip):
     '''
     Получаем диапазон адресов для icmp-сканирования
     и общее количество IP-адресов в диапазоне
     :param range_ip: спарсеная строка разделенная по "-"
     :return: диапазон адресов и общее количество IP-адресов в диапазоне
     '''
-    # Получаем диапазон адресов для icmp-сканирования
-    start_ip = range_ip[0]
-    end_ip = range_ip[1]
+
     ip_addr_list = get_available_ips(start_ip, end_ip)
 
     # Преобразуем начальный и конечный IP-адреса в объекты ipaddress.IPv4Address
@@ -209,7 +207,12 @@ def main():
 
         # Получаем диапазон адресов для icmp-сканирования
         range_ip = options.rangeip.split('-')
-        ip_addr_list, total_ips = calculating_the_range(range_ip)
+
+        # Получаем диапазон адресов для icmp-сканирования
+        start_ip = range_ip[0]
+        end_ip = range_ip[1]
+
+        ip_addr_list, total_ips = calculating_the_range(start_ip, end_ip)
 
         # Запуск сканирования
         ping_scanning(file, speed, total_ips, ip_addr_list)
@@ -233,9 +236,27 @@ def main():
                 print(f'\n[+] range_counter: {range_counter}/{x}')
                 print(f'[+] range: {line}')
 
-                # Получаем диапазон адресов для icmp-сканирования
-                range_ip = line.split('-')
-                ip_addr_list, total_ips = calculating_the_range(range_ip)
+                if "-" in line:
+
+                    # Получаем диапазон адресов для icmp-сканирования
+                    range_ip = line.split('-')
+
+                    # Получаем диапазон адресов для icmp-сканирования
+                    start_ip = range_ip[0]
+                    end_ip = range_ip[1]
+
+                    ip_addr_list, total_ips = calculating_the_range(start_ip, end_ip)
+
+                if "/" in line:
+
+                    # Создаем объект сети из строки
+                    network = ipaddress.ip_network(line)
+
+                    # Получаем начальный и конечный IP-адреса
+                    start_ip = str(network.network_address)
+                    end_ip = str(network.broadcast_address - 1)  # Без учета широковещательного адреса
+
+                    ip_addr_list, total_ips = calculating_the_range(start_ip, end_ip)
 
                 # Запуск сканирования диапазона
                 ping_scanning(file, speed, total_ips, ip_addr_list)
