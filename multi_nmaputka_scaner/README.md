@@ -15,7 +15,9 @@ cmd = ["nmap", "-sS", "-sV", "-O"]
 
 Пример использования:
 
+```commandline
 python3 multi_nmaputka_scaner.py -r read_ip_file -f save_file -s 100 
+```
 
 где:
 
@@ -46,7 +48,9 @@ these pings start to get lost when the program is running, then the point cannot
 
 Usage example:
 
+```commandline
 python3 multi_nmaputka_scaner.py -r read_ip_file -f save_file -s 100
+```
 
 where:
 
