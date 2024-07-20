@@ -11,7 +11,9 @@
 
 Пример использования:
 
+```commandline
 python3 multi_pingutka_scaner.py -r 192.168.0.0-192.168.255.255 -f file_save -s 100
+```
 
 где:
 
@@ -37,7 +39,9 @@ small packets.
 
 Usage example:
 
+```commandline
 python3 ping_scaner.py -r 192.168.0.0-192.168.255.255 -f file_save -s 100
+```
 
 where:
 
